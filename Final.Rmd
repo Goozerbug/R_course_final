@@ -1,0 +1,338 @@
+---
+title: "Preliminary firefly data from South America"
+author: "Martha Drake"
+date: "2025-11-25"
+output: 
+  html_document:
+    code_folding: hide
+    theme: flatly
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE)
+```
+
+# Introduction 
+
+This report presents an preliminary analysis of museum firefly specimens currently on loan to the University of Georgia including distribution and morphometric data. The analysis combines specimen collection data with species-level measurements to examine patterns in firefly diversity across geographic regions and explore relationships between morphology and distribution.
+
+```{r}
+library(readxl)
+library(tidyverse)
+library(here)
+library(dplyr)
+library(ggplot2)
+library(lubridate)
+library(kableExtra)
+```
+
+# Data Import and Preparation
+
+```{r data-import}
+#Read in the datasets
+firefly <- read_xlsx(here("Firefly.xlsx"))
+measurements <- read_xlsx(here("Measurments.xlsx"))
+```
+
+```{r data-cleaning}
+#Data cleaning and QA/QC
+#Custom function to clean species names
+clean_species_name <- function(name) {
+#Remove extra whitespace and standardize capitalization
+  name <- str_trim(name)
+  name <- str_to_lower(name)
+#Check if name is valid and not na
+  if (nchar(name) < 2) {
+    return(NA_character_)
+  } else {
+    return(name)
+  }
+}
+
+#Clean the firefly dataset
+firefly_clean <- firefly %>%
+#First, replace cells with NA
+  mutate(across(where(is.character), ~na_if(., ""))) %>%
+#Remove columns with all values being NA these are for future work to be filled in later and are not needed here
+  select(where(~!all(is.na(.)))) %>%
+  mutate(
+#Clean species names using the custom function we made above
+    Species = map_chr(Species, clean_species_name),
+#Parse dates as month-year, establishing anything that I might have put as nd (no date) as NA, creating a new column for original date so the data is removed, we just have a column that translates our dates or easier analysis later, for this analysis it will take our date/year and translate it to the first day of the month. Keep in mind the month it correlates to shows specimens collected any time that month
+    Date_original = Date,
+    Date = if_else(Date %in% c("N.D.", "ND", "N.D", "nd"), 
+                   NA_character_, 
+                   Date),
+    Date = suppressWarnings(parse_date_time(Date, orders = c("my", "ym", "b Y", "B Y"), truncated = 2)),
+#Clean up the coordinates and establish them as coords
+    Lat = as.numeric(Lat),
+    Long = as.numeric(Long)
+  ) %>%
+#Remove rows with NA
+  filter(!is.na(Species), !is.na(Lat), !is.na(Long))
+
+#Clean the measurements dataset
+measurements_clean <- measurements %>%
+  mutate(
+    Species = map_chr(Species, clean_species_name),
+    Average_length = as.numeric(Average_length),
+    Average_width = as.numeric(Average_width)
+  ) %>%
+  filter(!is.na(Species))
+```
+
+```{r subsetting-and-selecting}
+#Subsetting rows and selecting columns
+#create a subset with only the columns we will need for the analysis below
+firefly_subset <- firefly_clean %>%
+  select(Genus, Species, Country, Prov_depto_state, Location, Lat, Long, Date)
+
+#subset the data to countries that have good data online, it should be everything we have but this is just a precaution to clean and parse the data even more
+firefly_filtered <- firefly_subset %>%
+  filter(!is.na(Country), !is.na(Date))
+```
+
+```{r adding-columns}
+#Adding new columns
+firefly_enhanced <- firefly_filtered %>%
+  mutate(
+#Extract year, month, and establish season from date provided in the data based on location. This is going to look strange to you but keep in mind the seasons in South America are different than our own
+    Year = year(Date),
+    Month = month(Date, label = TRUE),
+    Season = case_when(
+      Month %in% c("Dec", "Jan", "Feb") ~ "Summer",
+      Month %in% c("Mar", "Apr", "May") ~ "Autumn",
+      Month %in% c("Jun", "Jul", "Aug") ~ "Winter",
+      Month %in% c("Sep", "Oct", "Nov") ~ "Spring"
+    ),
+#Create a column that has the scientific name in one cell instead of having them in two seperate columns
+    Scientific_name = paste(Genus, Species),
+#Calculate absolute latitude (distance from equator)
+    Abs_lat = abs(Lat),
+  )
+```
+
+```{r joining-datasets}
+#Joining both datasets together now
+firefly_complete <- firefly_enhanced %>%
+  left_join(measurements_clean, by = "Species") %>%
+#Add body size category based on length establishing what each size category is
+  mutate(
+    Size_category = case_when(
+      Average_length < 8 ~ "Small",
+      Average_length >= 8 & Average_length < 12 ~ "Medium",
+      Average_length >= 12 ~ "Large",
+      TRUE ~ "Unknown"
+    )
+  )
+```
+
+```{r factors}
+#Creating factors and reordering factor levels
+firefly_complete <- firefly_complete %>%
+  mutate(
+#Convert seasons to factor with in an order that makes sense to us humans
+    Season = factor(Season, levels = c("Spring", "Summer", "Autumn", "Winter")),
+#Order the different size categories from small to big
+    Size_category = factor(Size_category, 
+                          levels = c("Small", "Medium", "Large", "Unknown")),
+#Convert country to factor, ordered by frequency
+    Country = fct_infreq(Country),
+#Create genus factor
+    Genus = as.factor(Genus.x) 
+  )
+```
+
+# Data Summary
+
+```{r summarizing-by-group}
+#Summarizing data by group this should not show up in the actual knitted file as that will be represented in the next chunk in code
+
+#Summary by country
+country_summary <- firefly_complete %>%
+  group_by(Country) %>%
+  summarise(
+    N_specimens = n(),
+    N_species = n_distinct(Species),
+    Mean_latitude = mean(Lat, na.rm = TRUE),
+    SD_latitude = sd(Lat, na.rm = TRUE),
+    Date_range_years = paste(min(Year, na.rm = TRUE), 
+                             max(Year, na.rm = TRUE), 
+                             sep = " - ")
+  ) %>%
+  arrange(desc(N_specimens))
+# Summary by species
+species_summary <- firefly_complete %>%
+  group_by(Scientific_name, Size_category) %>%
+  summarise(
+    N_records = n(),
+    N_countries = n_distinct(Country),
+    Mean_lat = mean(Lat, na.rm = TRUE),
+    Mean_length = mean(Average_length, na.rm = TRUE),
+    Mean_width = mean(Average_width, na.rm = TRUE),
+    .groups = "drop"
+  )
+```
+
+## Collection Overview
+
+```{r loop-for-metrics}
+#For or while loop
+
+#Calculate various metrics using a loop
+metrics <- list()
+categories <- c("Country", "Season", "Size_category")
+
+for (i in seq_along(categories)) {
+  cat_name <- categories[i]
+  
+#If statement (already used above, but additional here)
+  if (cat_name %in% names(firefly_complete)) {
+    metrics[[cat_name]] <- firefly_complete %>%
+      group_by(across(all_of(cat_name))) %>%
+      summarise(count = n(), .groups = "drop") %>%
+      arrange(desc(count))
+  }
+}
+```
+
+Our dataset includes **`r nrow(firefly_complete)` specimen records** representing **`r n_distinct(firefly_complete$Species)` species** across **`r n_distinct(firefly_complete$Genus)` genera**. Collections span from **`r min(firefly_complete$Year, na.rm = TRUE)`** to **`r max(firefly_complete$Year, na.rm = TRUE)`**, covering **`r n_distinct(firefly_complete$Country)` countries**.
+
+```{r nested-dataframes}
+#Using lists or nested data frames
+
+#Create nested data frame by country
+nested_by_country <- firefly_complete %>%
+  group_by(Country) %>%
+  nest() %>%
+  mutate(
+  #Calculate summary statistics for each country
+    n_records = map_int(data, nrow),
+    n_species = map_int(data, ~n_distinct(.x$Species)),
+    lat_range = map(data, ~range(.x$Lat, na.rm = TRUE))
+  )
+
+#Create nested data frame by species
+nested_by_species <- firefly_complete %>%
+  group_by(Scientific_name) %>%
+  nest() %>%
+  mutate(
+    geographic_range = map(data, ~{
+      list(
+        lat_range = range(.x$Lat, na.rm = TRUE),
+        long_range = range(.x$Long, na.rm = TRUE),
+        countries = unique(.x$Country)
+      )
+    })
+  )
+```
+
+The most well-sampled country is **`r country_summary$Country[1]`** with `r country_summary$N_specimens[1]` specimens from `r country_summary$N_species[1]` species.
+
+```{r table-summary}
+#TABLE: Country-level summary
+country_table <- country_summary %>%
+  head(10) %>%
+  select(Country, N_specimens, N_species, Mean_latitude, Date_range_years) %>%
+  mutate(Mean_latitude = round(Mean_latitude, 2))
+```
+
+**Table 1. Summary of firefly collections by country.** Shows the top 10 countries by specimen count, including number of specimens, species diversity, mean latitude of collection sites, and temporal range of collections.
+
+```{r}
+kable(country_table, 
+      col.names = c("Country", "Specimens", "Species", "Mean Latitude", "Collection Period"),
+      align = c("l", "r", "r", "r", "l")) %>%
+  kable_styling(bootstrap_options = c("striped", "hover", "condensed"),
+                full_width = FALSE)
+```
+
+#Geographic Distribution
+
+```{r scatterplot, fig.width=10, fig.height=6}
+#FIGURE 1: Scatterplot of geographic distribution
+ggplot(firefly_complete, aes(x = Long, y = Lat, color = Country)) +
+  geom_point(alpha = 0.6, size = 3) +
+  labs(
+    title = "Geographic Distribution of Firefly Collection Sites",
+    subtitle = "Specimen locations colored by country",
+    x = "Longitude (°)",
+    y = "Latitude (°)",
+    color = "Country",
+    caption = "Figure 1. Each point represents a firefly specimen collection location."
+  ) +
+  theme_minimal() +
+  theme(
+    legend.position = "right",
+    plot.title = element_text(size = 14, face = "bold"),
+    plot.subtitle = element_text(size = 10, color = "gray40")
+  )
+```
+
+**Figure 1.** Geographic distribution shows clustering of collection efforts in specific regions, with most specimens collected in Peru. The latitudinal range spans from tropical to temperate zones.
+
+# Morphometric Patterns
+
+```{r boxplot, fig.width=10, fig.height=6}
+#FIGURE 2: Boxplot of body size by size category
+firefly_with_size <- firefly_complete %>%
+  filter(!is.na(Average_length), Size_category != "Unknown")
+
+ggplot(firefly_with_size, aes(x = Size_category, y = Average_length, fill = Size_category)) +
+  geom_boxplot(alpha = 0.7) +
+  geom_jitter(width = 0.2, alpha = 0.3, size = 2) +
+  labs(
+    title = "Body Length Distribution Across Size Categories",
+    subtitle = "Average length measurements for different firefly species",
+    x = "Size Category",
+    y = "Average Body Length (mm)",
+    fill = "Size Category",
+    caption = "Figure 2. Boxplots show median, quartiles, and range of body lengths."
+  ) +
+  theme_minimal() +
+  theme(
+    legend.position = "none",
+    plot.title = element_text(size = 14, face = "bold"),
+    plot.subtitle = element_text(size = 10, color = "gray40")
+  ) +
+  scale_fill_brewer(palette = "Set2")
+```
+
+**Figure 2.** Body size is catagorized into the following: small species under 8mm, medium species between 8-12mm, and large species exceeding 12mm in length.
+
+#Key Findings and Future Directions
+
+##Major Observations
+
+1. **Geographic Clustering**: Collection events are concentrated in Peru, suggesting either high diversity in this region or sampling bias.
+
+2. **Morphometric Diversity**: The dataset reveals substantial variation in body size across species, with the size categories showing distinct morphological groups that may reflect different ecological niches.
+
+3. **Temporal Coverage**: Collections span multiple decades, providing a temporal baseline for potential long-term biodiversity studies.
+
+##Recommendations for Future Analysis
+
+- **Biogeographic Analysis**: Investigate whether size patterns correlate with latitude or elevation, testing Bergmann's rule in fireflies
+- **Temporal Trends**: Examine whether collection locations have shifted over time, potentially reflecting habitat changes
+- **Species Distribution Modeling**: Use the occurrence data combined with environmental variables to model habitat suitability
+- **Morphological Evolution**: Analyze the relationship between body size and geographic distribution to test evolutionary hypotheses
+
+##Data Quality Improvements
+
+Future data collection should prioritize:
+- Standardized measurement protocols across collectors
+- Complete metadata for all specimens (dates, precise localities)
+- Expanded geographic coverage to fill sampling gaps
+- Integration with molecular data for phylogenetic context
+
+#References
+
+Data sources and methodology follow standard practices in entomological specimen databases. Morphometric measurements represent averages across multiple individuals per species where available.
+
+---
+
+*This report was generated using R and Quarto. All code is available in the accompanying GitHub repository.*
+
+```{r session-info, include=FALSE}
+#Document session information for reproducibility
+sessionInfo()
