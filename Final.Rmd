@@ -28,6 +28,8 @@ library(kableExtra)
 
 # Data Import and Preparation
 
+For detailed step-by-step methodology for the importation and cleaning of the data please see the annotated code in the repository
+
 ```{r data-import}
 #Read in the datasets
 firefly <- read_xlsx(here("Firefly.xlsx"))
@@ -144,6 +146,8 @@ firefly_complete <- firefly_complete %>%
 ```
 
 # Data Summary
+
+For the step-by-step process of the data summarization please see the annotated code in the repository
 
 ```{r summarizing-by-group}
 #Summarizing data by group this should not show up in the actual knitted file as that will be represented in the next chunk in code
@@ -300,9 +304,9 @@ ggplot(firefly_with_size, aes(x = Size_category, y = Average_length, fill = Size
 
 **Figure 2.** Body size is catagorized into the following: small species under 8mm, medium species between 8-12mm, and large species exceeding 12mm in length.
 
-#Key Findings and Future Directions
+# Key Findings and Future Directions
 
-##Major Observations
+## Major Observations
 
 1. **Geographic Clustering**: Collection events are concentrated in Peru, suggesting either high diversity in this region or sampling bias.
 
@@ -310,22 +314,26 @@ ggplot(firefly_with_size, aes(x = Size_category, y = Average_length, fill = Size
 
 3. **Temporal Coverage**: Collections span multiple decades, providing a temporal baseline for potential long-term biodiversity studies.
 
-##Recommendations for Future Analysis
+## Recommendations for Future Analysis
 
 - **Biogeographic Analysis**: Investigate whether size patterns correlate with latitude or elevation, testing Bergmann's rule in fireflies
 - **Temporal Trends**: Examine whether collection locations have shifted over time, potentially reflecting habitat changes
 - **Species Distribution Modeling**: Use the occurrence data combined with environmental variables to model habitat suitability
 - **Morphological Evolution**: Analyze the relationship between body size and geographic distribution to test evolutionary hypotheses
 
-##Data Quality Improvements
+## Data Quality Improvements
 
 Future data collection should prioritize:
+
 - Standardized measurement protocols across collectors
+
 - Complete metadata for all specimens (dates, precise localities)
+
 - Expanded geographic coverage to fill sampling gaps
+
 - Integration with molecular data for phylogenetic context
 
-#References
+# References
 
 Data sources and methodology follow standard practices in entomological specimen databases. Morphometric measurements represent averages across multiple individuals per species where available.
 
