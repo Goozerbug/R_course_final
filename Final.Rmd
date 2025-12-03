@@ -38,7 +38,7 @@ measurements <- read_xlsx(here("Measurments.xlsx"))
 
 ```{r data-cleaning}
 #Data cleaning and QA/QC
-#Custom function to clean species names
+#Custom function to clean species names in case I messed it up when typing
 clean_species_name <- function(name) {
 #Remove extra whitespace and standardize capitalization
   name <- str_trim(name)
@@ -98,7 +98,7 @@ firefly_filtered <- firefly_subset %>%
 #Adding new columns
 firefly_enhanced <- firefly_filtered %>%
   mutate(
-#Extract year, month, and establish season from date provided in the data based on location. This is going to look strange to you but keep in mind the seasons in South America are different than our own
+#Extract year, month, and establish season from date provided in the data based on location. This might look strange to you living in North America but keep in mind the seasons in South America are different than our own
     Year = year(Date),
     Month = month(Date, label = TRUE),
     Season = case_when(
@@ -118,7 +118,7 @@ firefly_enhanced <- firefly_filtered %>%
 #Joining both datasets together now
 firefly_complete <- firefly_enhanced %>%
   left_join(measurements_clean, by = "Species") %>%
-#Add body size category based on length establishing what each size category is
+#Add body size category based on length establishing what each size category is so that R knows what we want
   mutate(
     Size_category = case_when(
       Average_length < 8 ~ "Small",
@@ -133,14 +133,14 @@ firefly_complete <- firefly_enhanced %>%
 #Creating factors and reordering factor levels
 firefly_complete <- firefly_complete %>%
   mutate(
-#Convert seasons to factor with in an order that makes sense to us humans
+#Convert seasons to factor with in an order that makes sense to us humans because R will not care
     Season = factor(Season, levels = c("Spring", "Summer", "Autumn", "Winter")),
 #Order the different size categories from small to big
     Size_category = factor(Size_category, 
                           levels = c("Small", "Medium", "Large", "Unknown")),
 #Convert country to factor, ordered by frequency
     Country = fct_infreq(Country),
-#Create genus factor
+#Create a genus factor
     Genus = as.factor(Genus.x) 
   )
 ```
@@ -165,7 +165,7 @@ country_summary <- firefly_complete %>%
                              sep = " - ")
   ) %>%
   arrange(desc(N_specimens))
-# Summary by species
+#Summary by species
 species_summary <- firefly_complete %>%
   group_by(Scientific_name, Size_category) %>%
   summarise(
@@ -273,7 +273,7 @@ ggplot(firefly_complete, aes(x = Long, y = Lat, color = Country)) +
   )
 ```
 
-**Figure 1.** Geographic distribution shows clustering of collection efforts in specific regions, with most specimens collected in Peru. The latitudinal range spans from tropical to temperate zones.
+**Figure 1.** Geographic distribution shows most of collection efforts clustered in regions rather than spred out, with most specimens collected in Peru. The latitudinal range spans from tropical to temperate zones.
 
 # Morphometric Patterns
 
@@ -302,7 +302,7 @@ ggplot(firefly_with_size, aes(x = Size_category, y = Average_length, fill = Size
   scale_fill_brewer(palette = "Set2")
 ```
 
-**Figure 2.** Body size is catagorized into the following: small species under 8mm, medium species between 8-12mm, and large species exceeding 12mm in length.
+**Figure 2.** Body size is catagorized into the following: small species under 8mm, medium species between 8-12mm, and large species greater than 12mm in length.
 
 # Key Findings and Future Directions
 
@@ -310,32 +310,24 @@ ggplot(firefly_with_size, aes(x = Size_category, y = Average_length, fill = Size
 
 1. **Geographic Clustering**: Collection events are concentrated in Peru, suggesting either high diversity in this region or sampling bias.
 
-2. **Morphometric Diversity**: The dataset reveals substantial variation in body size across species, with the size categories showing distinct morphological groups that may reflect different ecological niches.
+2. **Morphometric Diversity**: The data set seems to show a correlation between size and locational region likely indicating a geographic influence on size variables.
 
-3. **Temporal Coverage**: Collections span multiple decades, providing a temporal baseline for potential long-term biodiversity studies.
+3. **Temporal Coverage**: Sampling spans multiple decades, providing baseline for potential long-term biodiversity studies.
 
 ## Recommendations for Future Analysis
 
-- **Biogeographic Analysis**: Investigate whether size patterns correlate with latitude or elevation, testing Bergmann's rule in fireflies
-- **Temporal Trends**: Examine whether collection locations have shifted over time, potentially reflecting habitat changes
-- **Species Distribution Modeling**: Use the occurrence data combined with environmental variables to model habitat suitability
+- **Biogeographic Analysis**: Investigate whether size patterns truly correlate with latitude or elevation.
+- **Temporal Trends**: Examine whether collection locations have shifted over time, potentially reflecting habitat changes or bias by collectors
+- **Species Distribution Modeling**: Use the occurrence data combined with environmental variables to model habitat suitability (ENM)
 - **Morphological Evolution**: Analyze the relationship between body size and geographic distribution to test evolutionary hypotheses
 
 ## Data Quality Improvements
 
-Future data collection should prioritize:
+Future data collection should focus on:
 
-- Standardized measurement protocols across collectors
-
-- Complete metadata for all specimens (dates, precise localities)
-
-- Expanded geographic coverage to fill sampling gaps
+- Expanded geographic coverage to fill sampling gaps and time gaps
 
 - Integration with molecular data for phylogenetic context
-
-# References
-
-Data sources and methodology follow standard practices in entomological specimen databases. Morphometric measurements represent averages across multiple individuals per species where available.
 
 ---
 
