@@ -333,6 +333,3 @@ Future data collection should focus on:
 
 *This report was generated using R and Quarto. All code is available in the accompanying GitHub repository.*
 
-```{r session-info, include=FALSE}
-#Document session information for reproducibility
-sessionInfo()
