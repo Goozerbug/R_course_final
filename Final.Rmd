@@ -38,7 +38,7 @@ measurements <- read_xlsx(here("Measurments.xlsx"))
 
 ```{r data-cleaning}
 #Data cleaning and QA/QC
-#Custom function to clean species names in case I messed it up when typing
+#Custom function to clean species names in case we messed it up when typing
 clean_species_name <- function(name) {
 #Remove extra whitespace and standardize capitalization
   name <- str_trim(name)
